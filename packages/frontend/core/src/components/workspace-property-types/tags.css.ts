@@ -24,3 +24,6 @@ export const groupHeaderLabel = style({
   alignItems: 'center',
   gap: 4,
 });
+export const moreTagsLabel = style({
+  marginLeft: 4,
+});
