@@ -140,6 +140,68 @@ export interface ChatMessage {
   streamObjects: Maybe<Array<StreamObject>>;
 }
 
+/** Comment change action */
+export enum CommentChangeAction {
+  delete = 'delete',
+  update = 'update',
+}
+
+export interface CommentChangeObjectType {
+  __typename?: 'CommentChangeObjectType';
+  /** The action of the comment change */
+  action: CommentChangeAction;
+  commentId: Maybe<Scalars['ID']['output']>;
+  id: Scalars['ID']['output'];
+  /** The item of the comment or reply, different types have different fields, see UnionCommentObjectType */
+  item: Scalars['JSONObject']['output'];
+}
+
+export interface CommentChangeObjectTypeEdge {
+  __typename?: 'CommentChangeObjectTypeEdge';
+  cursor: Scalars['String']['output'];
+  node: CommentChangeObjectType;
+}
+
+export interface CommentCreateInput {
+  content: Scalars['JSONObject']['input'];
+  docId: Scalars['ID']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface CommentObjectType {
+  __typename?: 'CommentObjectType';
+  /** The content of the comment */
+  content: Scalars['JSONObject']['output'];
+  /** The created at time of the comment */
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  /** The replies of the comment */
+  replies: Array<ReplyObjectType>;
+  /** Whether the comment is resolved */
+  resolved: Scalars['Boolean']['output'];
+  /** The updated at time of the comment */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The user who created the comment */
+  user: PublicUserType;
+}
+
+export interface CommentObjectTypeEdge {
+  __typename?: 'CommentObjectTypeEdge';
+  cursor: Scalars['String']['output'];
+  node: CommentObjectType;
+}
+
+export interface CommentResolveInput {
+  id: Scalars['ID']['input'];
+  /** Whether the comment is resolved */
+  resolved: Scalars['Boolean']['input'];
+}
+
+export interface CommentUpdateInput {
+  content: Scalars['JSONObject']['input'];
+  id: Scalars['ID']['input'];
+}
+
 export enum ContextCategories {
   Collection = 'Collection',
   Tag = 'Tag',
@@ -583,6 +645,10 @@ export interface DocNotFoundDataType {
 
 export interface DocPermissions {
   __typename?: 'DocPermissions';
+  Doc_Comments_Create: Scalars['Boolean']['output'];
+  Doc_Comments_Delete: Scalars['Boolean']['output'];
+  Doc_Comments_Read: Scalars['Boolean']['output'];
+  Doc_Comments_Resolve: Scalars['Boolean']['output'];
   Doc_Copy: Scalars['Boolean']['output'];
   Doc_Delete: Scalars['Boolean']['output'];
   Doc_Duplicate: Scalars['Boolean']['output'];
@@ -600,6 +666,7 @@ export interface DocPermissions {
 
 /** User permission in doc */
 export enum DocRole {
+  Commenter = 'Commenter',
   Editor = 'Editor',
   External = 'External',
   Manager = 'Manager',
@@ -1263,6 +1330,7 @@ export interface Mutation {
   createChangePasswordUrl: Scalars['String']['output'];
   /** Create a subscription checkout link of stripe */
   createCheckoutSession: Scalars['String']['output'];
+  createComment: CommentObjectType;
   /** Create a context session */
   createCopilotContext: Scalars['String']['output'];
   /** Create a chat message */
@@ -1274,6 +1342,7 @@ export interface Mutation {
   /** Create a stripe customer portal to manage payment methods */
   createCustomerPortal: Scalars['String']['output'];
   createInviteLink: InviteLink;
+  createReply: ReplyObjectType;
   createSelfhostWorkspaceCustomerPortal: Scalars['String']['output'];
   /** Create a new user */
   createUser: UserType;
@@ -1282,6 +1351,10 @@ export interface Mutation {
   deactivateLicense: Scalars['Boolean']['output'];
   deleteAccount: DeleteAccount;
   deleteBlob: Scalars['Boolean']['output'];
+  /** Delete a comment */
+  deleteComment: Scalars['Boolean']['output'];
+  /** Delete a reply */
+  deleteReply: Scalars['Boolean']['output'];
   /** Delete a user account */
   deleteUser: DeleteAccount;
   deleteWorkspace: Scalars['Boolean']['output'];
@@ -1321,6 +1394,8 @@ export interface Mutation {
   /** Remove workspace embedding files */
   removeWorkspaceEmbeddingFiles: Scalars['Boolean']['output'];
   removeWorkspaceFeature: Scalars['Boolean']['output'];
+  /** Resolve a comment or not */
+  resolveComment: Scalars['Boolean']['output'];
   resumeSubscription: SubscriptionType;
   retryAudioTranscription: Maybe<TranscriptionResultType>;
   /** @deprecated use [revokeMember] instead */
@@ -1341,6 +1416,8 @@ export interface Mutation {
   submitAudioTranscription: Maybe<TranscriptionResultType>;
   /** update app configuration */
   updateAppConfig: Scalars['JSONObject']['output'];
+  /** Update a comment content */
+  updateComment: Scalars['Boolean']['output'];
   /** Update a copilot prompt */
   updateCopilotPrompt: CopilotPromptType;
   /** Update a chat session */
@@ -1348,6 +1425,8 @@ export interface Mutation {
   updateDocDefaultRole: Scalars['Boolean']['output'];
   updateDocUserRole: Scalars['Boolean']['output'];
   updateProfile: UserType;
+  /** Update a reply content */
+  updateReply: Scalars['Boolean']['output'];
   /** Update user settings */
   updateSettings: Scalars['Boolean']['output'];
   updateSubscriptionRecurring: SubscriptionType;
@@ -1443,6 +1522,10 @@ export interface MutationCreateCheckoutSessionArgs {
   input: CreateCheckoutSessionInput;
 }
 
+export interface MutationCreateCommentArgs {
+  input: CommentCreateInput;
+}
+
 export interface MutationCreateCopilotContextArgs {
   sessionId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
@@ -1463,6 +1546,10 @@ export interface MutationCreateCopilotSessionArgs {
 export interface MutationCreateInviteLinkArgs {
   expireTime: WorkspaceInviteLinkExpireTime;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCreateReplyArgs {
+  input: ReplyCreateInput;
 }
 
 export interface MutationCreateSelfhostWorkspaceCustomerPortalArgs {
@@ -1486,6 +1573,14 @@ export interface MutationDeleteBlobArgs {
   key?: InputMaybe<Scalars['String']['input']>;
   permanently?: Scalars['Boolean']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationDeleteCommentArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface MutationDeleteReplyArgs {
+  id: Scalars['String']['input'];
 }
 
 export interface MutationDeleteUserArgs {
@@ -1601,6 +1696,10 @@ export interface MutationRemoveWorkspaceFeatureArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationResolveCommentArgs {
+  input: CommentResolveInput;
+}
+
 export interface MutationResumeSubscriptionArgs {
   idempotencyKey?: InputMaybe<Scalars['String']['input']>;
   plan?: InputMaybe<SubscriptionPlan>;
@@ -1685,6 +1784,10 @@ export interface MutationUpdateAppConfigArgs {
   updates: Array<UpdateAppConfigInput>;
 }
 
+export interface MutationUpdateCommentArgs {
+  input: CommentUpdateInput;
+}
+
 export interface MutationUpdateCopilotPromptArgs {
   messages: Array<CopilotPromptMessageInput>;
   name: Scalars['String']['input'];
@@ -1704,6 +1807,10 @@ export interface MutationUpdateDocUserRoleArgs {
 
 export interface MutationUpdateProfileArgs {
   input: UpdateUserInput;
+}
+
+export interface MutationUpdateReplyArgs {
+  input: ReplyUpdateInput;
 }
 
 export interface MutationUpdateSettingsArgs {
@@ -1827,6 +1934,20 @@ export interface PageInfo {
   hasNextPage: Scalars['Boolean']['output'];
   hasPreviousPage: Scalars['Boolean']['output'];
   startCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface PaginatedCommentChangeObjectType {
+  __typename?: 'PaginatedCommentChangeObjectType';
+  edges: Array<CommentChangeObjectTypeEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+}
+
+export interface PaginatedCommentObjectType {
+  __typename?: 'PaginatedCommentObjectType';
+  edges: Array<CommentObjectTypeEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
 }
 
 export interface PaginatedCopilotWorkspaceFileType {
@@ -2046,6 +2167,30 @@ export interface RemoveContextDocInput {
 export interface RemoveContextFileInput {
   contextId: Scalars['String']['input'];
   fileId: Scalars['String']['input'];
+}
+
+export interface ReplyCreateInput {
+  commentId: Scalars['ID']['input'];
+  content: Scalars['JSONObject']['input'];
+}
+
+export interface ReplyObjectType {
+  __typename?: 'ReplyObjectType';
+  commentId: Scalars['ID']['output'];
+  /** The content of the reply */
+  content: Scalars['JSONObject']['output'];
+  /** The created at time of the reply */
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  /** The updated at time of the reply */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The user who created the reply */
+  user: PublicUserType;
+}
+
+export interface ReplyUpdateInput {
+  content: Scalars['JSONObject']['input'];
+  id: Scalars['ID']['input'];
 }
 
 export interface RevokeDocUserRoleInput {
@@ -2591,6 +2736,10 @@ export interface WorkspaceType {
   blobs: Array<ListedBlob>;
   /** Blobs size of workspace */
   blobsSize: Scalars['Int']['output'];
+  /** Get comment changes of a doc */
+  commentChanges: PaginatedCommentChangeObjectType;
+  /** Get comments of a doc */
+  comments: PaginatedCommentObjectType;
   /** Workspace created date */
   createdAt: Scalars['DateTime']['output'];
   /** Get get with given id */
@@ -2652,6 +2801,16 @@ export interface WorkspaceType {
 
 export interface WorkspaceTypeAggregateArgs {
   input: AggregateInput;
+}
+
+export interface WorkspaceTypeCommentChangesArgs {
+  docId: Scalars['String']['input'];
+  pagination: PaginationInput;
+}
+
+export interface WorkspaceTypeCommentsArgs {
+  docId: Scalars['String']['input'];
+  pagination?: InputMaybe<PaginationInput>;
 }
 
 export interface WorkspaceTypeDocArgs {
@@ -3040,6 +3199,194 @@ export type ChangePasswordMutationVariables = Exact<{
 export type ChangePasswordMutation = {
   __typename?: 'Mutation';
   changePassword: boolean;
+};
+
+export type ListCommentChangesQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docId: Scalars['String']['input'];
+  pagination: PaginationInput;
+}>;
+
+export type ListCommentChangesQuery = {
+  __typename?: 'Query';
+  workspace: {
+    __typename?: 'WorkspaceType';
+    commentChanges: {
+      __typename?: 'PaginatedCommentChangeObjectType';
+      totalCount: number;
+      edges: Array<{
+        __typename?: 'CommentChangeObjectTypeEdge';
+        cursor: string;
+        node: {
+          __typename?: 'CommentChangeObjectType';
+          action: CommentChangeAction;
+          id: string;
+          commentId: string | null;
+          item: any;
+        };
+      }>;
+      pageInfo: {
+        __typename?: 'PageInfo';
+        startCursor: string | null;
+        endCursor: string | null;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
+      };
+    };
+  };
+};
+
+export type CreateCommentMutationVariables = Exact<{
+  input: CommentCreateInput;
+}>;
+
+export type CreateCommentMutation = {
+  __typename?: 'Mutation';
+  createComment: {
+    __typename?: 'CommentObjectType';
+    id: string;
+    content: any;
+    resolved: boolean;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+    replies: Array<{
+      __typename?: 'ReplyObjectType';
+      commentId: string;
+      id: string;
+      content: any;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  };
+};
+
+export type DeleteCommentMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type DeleteCommentMutation = {
+  __typename?: 'Mutation';
+  deleteComment: boolean;
+};
+
+export type ListCommentsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docId: Scalars['String']['input'];
+  pagination?: InputMaybe<PaginationInput>;
+}>;
+
+export type ListCommentsQuery = {
+  __typename?: 'Query';
+  workspace: {
+    __typename?: 'WorkspaceType';
+    comments: {
+      __typename?: 'PaginatedCommentObjectType';
+      totalCount: number;
+      edges: Array<{
+        __typename?: 'CommentObjectTypeEdge';
+        cursor: string;
+        node: {
+          __typename?: 'CommentObjectType';
+          id: string;
+          content: any;
+          resolved: boolean;
+          createdAt: string;
+          updatedAt: string;
+          user: {
+            __typename?: 'PublicUserType';
+            id: string;
+            name: string;
+            avatarUrl: string | null;
+          };
+          replies: Array<{
+            __typename?: 'ReplyObjectType';
+            commentId: string;
+            id: string;
+            content: any;
+            createdAt: string;
+            updatedAt: string;
+            user: {
+              __typename?: 'PublicUserType';
+              id: string;
+              name: string;
+              avatarUrl: string | null;
+            };
+          }>;
+        };
+      }>;
+      pageInfo: {
+        __typename?: 'PageInfo';
+        startCursor: string | null;
+        endCursor: string | null;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
+      };
+    };
+  };
+};
+
+export type CreateReplyMutationVariables = Exact<{
+  input: ReplyCreateInput;
+}>;
+
+export type CreateReplyMutation = {
+  __typename?: 'Mutation';
+  createReply: {
+    __typename?: 'ReplyObjectType';
+    commentId: string;
+    id: string;
+    content: any;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      __typename?: 'PublicUserType';
+      id: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+  };
+};
+
+export type DeleteReplyMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type DeleteReplyMutation = {
+  __typename?: 'Mutation';
+  deleteReply: boolean;
+};
+
+export type UpdateReplyMutationVariables = Exact<{
+  input: ReplyUpdateInput;
+}>;
+
+export type UpdateReplyMutation = {
+  __typename?: 'Mutation';
+  updateReply: boolean;
+};
+
+export type ResolveCommentMutationVariables = Exact<{
+  input: CommentResolveInput;
+}>;
+
+export type ResolveCommentMutation = {
+  __typename?: 'Mutation';
+  resolveComment: boolean;
+};
+
+export type UpdateCommentMutationVariables = Exact<{
+  input: CommentUpdateInput;
+}>;
+
+export type UpdateCommentMutation = {
+  __typename?: 'Mutation';
+  updateComment: boolean;
 };
 
 export type AddContextCategoryMutationVariables = Exact<{
@@ -5055,6 +5402,16 @@ export type Queries =
       response: ListBlobsQuery;
     }
   | {
+      name: 'listCommentChangesQuery';
+      variables: ListCommentChangesQueryVariables;
+      response: ListCommentChangesQuery;
+    }
+  | {
+      name: 'listCommentsQuery';
+      variables: ListCommentsQueryVariables;
+      response: ListCommentsQuery;
+    }
+  | {
       name: 'listContextObjectQuery';
       variables: ListContextObjectQueryVariables;
       response: ListContextObjectQuery;
@@ -5415,6 +5772,41 @@ export type Mutations =
       name: 'changePasswordMutation';
       variables: ChangePasswordMutationVariables;
       response: ChangePasswordMutation;
+    }
+  | {
+      name: 'createCommentMutation';
+      variables: CreateCommentMutationVariables;
+      response: CreateCommentMutation;
+    }
+  | {
+      name: 'deleteCommentMutation';
+      variables: DeleteCommentMutationVariables;
+      response: DeleteCommentMutation;
+    }
+  | {
+      name: 'createReplyMutation';
+      variables: CreateReplyMutationVariables;
+      response: CreateReplyMutation;
+    }
+  | {
+      name: 'deleteReplyMutation';
+      variables: DeleteReplyMutationVariables;
+      response: DeleteReplyMutation;
+    }
+  | {
+      name: 'updateReplyMutation';
+      variables: UpdateReplyMutationVariables;
+      response: UpdateReplyMutation;
+    }
+  | {
+      name: 'resolveCommentMutation';
+      variables: ResolveCommentMutationVariables;
+      response: ResolveCommentMutation;
+    }
+  | {
+      name: 'updateCommentMutation';
+      variables: UpdateCommentMutationVariables;
+      response: UpdateCommentMutation;
     }
   | {
       name: 'addContextCategoryMutation';
