@@ -1,3 +1,4 @@
+import type { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import type { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import type { ContextEmbedStatus } from '@affine/graphql';
 import {
@@ -541,6 +542,7 @@ export class AIChatBlockPeekView extends LitElement {
         .networkSearchConfig=${networkSearchConfig}
         .docDisplayConfig=${this.docDisplayConfig}
         .searchMenuConfig=${this.searchMenuConfig}
+        .affineWorkspaceDialogService=${this.affineWorkspaceDialogService}
         .onChatSuccess=${this._onChatSuccess}
         .trackOptions=${{
           where: 'ai-chat-block',
@@ -576,6 +578,9 @@ export class AIChatBlockPeekView extends LitElement {
   @property({ attribute: false })
   accessor affineFeatureFlagService!: FeatureFlagService;
 
+  @property({ attribute: false })
+  accessor affineWorkspaceDialogService!: WorkspaceDialogService;
+
   @state()
   accessor _historyMessages: ChatMessage[] = [];
 
@@ -605,7 +610,8 @@ export const AIChatBlockPeekViewTemplate = (
   searchMenuConfig: SearchMenuConfig,
   networkSearchConfig: AINetworkSearchConfig,
   reasoningConfig: AIReasoningConfig,
-  affineFeatureFlagService: FeatureFlagService
+  affineFeatureFlagService: FeatureFlagService,
+  affineWorkspaceDialogService: WorkspaceDialogService
 ) => {
   return html`<ai-chat-block-peek-view
     .blockModel=${blockModel}
@@ -615,5 +621,6 @@ export const AIChatBlockPeekViewTemplate = (
     .searchMenuConfig=${searchMenuConfig}
     .reasoningConfig=${reasoningConfig}
     .affineFeatureFlagService=${affineFeatureFlagService}
+    .affineWorkspaceDialogService=${affineWorkspaceDialogService}
   ></ai-chat-block-peek-view>`;
 };
