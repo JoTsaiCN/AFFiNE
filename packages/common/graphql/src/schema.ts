@@ -3262,6 +3262,12 @@ export type CreateCommentMutation = {
       content: any;
       createdAt: string;
       updatedAt: string;
+      user: {
+        __typename?: 'PublicUserType';
+        id: string;
+        name: string;
+        avatarUrl: string | null;
+      };
     }>;
   };
 };
