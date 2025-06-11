@@ -10,6 +10,7 @@ import {
 import { ZodType } from 'zod';
 
 import {
+  createDocEditTool,
   createDocSemanticSearchTool,
   createExaCrawlTool,
   createExaSearchTool,
@@ -380,6 +381,7 @@ export class CitationParser {
 }
 
 export interface CustomAITools extends ToolSet {
+  doc_edit: ReturnType<typeof createDocEditTool>;
   doc_semantic_search: ReturnType<typeof createDocSemanticSearchTool>;
   web_search_exa: ReturnType<typeof createExaSearchTool>;
   web_crawl_exa: ReturnType<typeof createExaCrawlTool>;
@@ -429,6 +431,12 @@ export class TextStreamParser {
       case 'tool-result': {
         result = this.addPrefix(result);
         switch (chunk.toolName) {
+          case 'doc_edit': {
+            if (chunk.result && typeof chunk.result === 'object') {
+              result += `\n${chunk.result.result}\n`;
+            }
+            break;
+          }
           case 'doc_semantic_search': {
             if (Array.isArray(chunk.result)) {
               result += `\nFound ${chunk.result.length} document${chunk.result.length !== 1 ? 's' : ''} related to “${chunk.args.query}”.\n`;

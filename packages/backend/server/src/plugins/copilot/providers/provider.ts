@@ -9,10 +9,13 @@ import {
   CopilotProviderNotSupported,
   OnEvent,
 } from '../../../base';
+import { DocReader } from '../../../core/doc';
 import { AccessController } from '../../../core/permission';
 import { CopilotContextService } from '../context';
 import {
+  buildContentGetter,
   buildDocSearchGetter,
+  createDocEditTool,
   createDocSemanticSearchTool,
   createExaCrawlTool,
   createExaSearchTool,
@@ -124,6 +127,8 @@ export abstract class CopilotProvider<C = any> {
   ): Promise<ToolSet> {
     const tools: ToolSet = {};
     if (options?.tools?.length) {
+      const ac = this.moduleRef.get(AccessController, { strict: false });
+
       for (const tool of options.tools) {
         const toolDef = this.getProviderSpecificTools(tool, model);
         if (toolDef) {
@@ -131,8 +136,16 @@ export abstract class CopilotProvider<C = any> {
           continue;
         }
         switch (tool) {
+          case 'docEdit': {
+            const doc = this.moduleRef.get(DocReader, { strict: false });
+            const getDocContent = buildContentGetter(ac, doc);
+            tools.doc_edit = createDocEditTool(
+              this.factory,
+              getDocContent.bind(null, options)
+            );
+            break;
+          }
           case 'docSemanticSearch': {
-            const ac = this.moduleRef.get(AccessController, { strict: false });
             const context = this.moduleRef.get(CopilotContextService, {
               strict: false,
             });
