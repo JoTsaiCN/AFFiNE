@@ -2,7 +2,6 @@ import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 
 import {
   Cache,
-  Config,
   CopilotInvalidContext,
   NoCopilotProviderAvailable,
   OnEvent,
@@ -15,9 +14,11 @@ import {
   ContextFile,
   Models,
 } from '../../../models';
-import { OpenAIEmbeddingClient } from './embedding';
+import { PromptService } from '../prompt';
+import { CopilotProviderFactory } from '../providers';
+import { getEmbeddingClient } from './embedding';
 import { ContextSession } from './session';
-import { EmbeddingClient } from './types';
+import type { EmbeddingClient } from './types';
 
 const CONTEXT_SESSION_KEY = 'context-session';
 
@@ -27,26 +28,24 @@ export class CopilotContextService implements OnApplicationBootstrap {
   private client: EmbeddingClient | undefined;
 
   constructor(
-    private readonly config: Config,
     private readonly cache: Cache,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly providerFactory: CopilotProviderFactory,
+    private readonly prompt: PromptService
   ) {}
 
   @OnEvent('config.init')
-  onConfigInit() {
-    this.setup();
+  async onConfigInit() {
+    await this.setup();
   }
 
   @OnEvent('config.changed')
-  onConfigChanged() {
-    this.setup();
+  async onConfigChanged() {
+    await this.setup();
   }
 
-  private setup() {
-    const configure = this.config.copilot.providers.openai;
-    if (configure.apiKey) {
-      this.client = new OpenAIEmbeddingClient(configure);
-    }
+  private async setup() {
+    this.client = await getEmbeddingClient(this.providerFactory, this.prompt);
   }
 
   async onApplicationBootstrap() {
@@ -159,14 +158,15 @@ export class CopilotContextService implements OnApplicationBootstrap {
     const embedding = await this.embeddingClient.getEmbedding(content, signal);
     if (!embedding) return [];
 
-    const chunks = await this.models.copilotWorkspace.matchFileEmbedding(
+    const fileChunks = await this.models.copilotWorkspace.matchFileEmbedding(
       workspaceId,
       embedding,
       topK * 2,
       threshold
     );
+    if (!fileChunks.length) return [];
 
-    return this.embeddingClient.reRank(content, chunks, topK, signal);
+    return this.embeddingClient.reRank(content, fileChunks, topK, signal);
   }
 
   async matchWorkspaceDocs(
@@ -180,14 +180,16 @@ export class CopilotContextService implements OnApplicationBootstrap {
     const embedding = await this.embeddingClient.getEmbedding(content, signal);
     if (!embedding) return [];
 
-    const workspace = await this.models.copilotContext.matchWorkspaceEmbedding(
-      embedding,
-      workspaceId,
-      topK * 2,
-      threshold
-    );
+    const workspaceChunks =
+      await this.models.copilotContext.matchWorkspaceEmbedding(
+        embedding,
+        workspaceId,
+        topK * 2,
+        threshold
+      );
+    if (!workspaceChunks.length) return [];
 
-    return this.embeddingClient.reRank(content, workspace, topK);
+    return this.embeddingClient.reRank(content, workspaceChunks, topK, signal);
   }
 
   @OnEvent('workspace.doc.embed.failed')

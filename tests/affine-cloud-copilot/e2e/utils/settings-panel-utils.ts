@@ -7,7 +7,7 @@ export class SettingsPanelUtils {
     if (await page.getByTestId('workspace-setting:embedding').isHidden()) {
       await page.getByTestId('slider-bar-workspace-setting-button').click();
       await page.getByTestId('workspace-setting:embedding').click();
-      await page.getByTestId('workspace-embedding-setting-wrapper').waitFor({
+      await page.getByTestId('workspace-embedding-setting-header').waitFor({
         state: 'visible',
       });
     }
@@ -88,6 +88,10 @@ export class SettingsPanelUtils {
 
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(attachment);
+
+      await page
+        .getByTestId('workspace-embedding-setting-attachment-uploading-item')
+        .waitFor({ state: 'hidden' });
     }
   }
 

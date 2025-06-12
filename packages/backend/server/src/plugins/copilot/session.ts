@@ -19,7 +19,6 @@ import { ChatMessageCache } from './message';
 import { PromptService } from './prompt';
 import { PromptMessage, PromptParams } from './providers';
 import {
-  AvailableModel,
   ChatHistory,
   ChatMessage,
   ChatMessageSchema,
@@ -38,7 +37,7 @@ export class ChatSession implements AsyncDisposable {
     private readonly messageCache: ChatMessageCache,
     private readonly state: ChatSessionState,
     private readonly dispose?: (state: ChatSessionState) => Promise<void>,
-    private readonly maxTokenSize = 3840
+    private readonly maxTokenSize = state.prompt.config?.maxTokens || 128 * 1024
   ) {}
 
   get model() {
@@ -142,17 +141,17 @@ export class ChatSession implements AsyncDisposable {
   }
 
   private mergeUserContent(params: PromptParams) {
-    const messages = this.stashMessages;
-    const firstMessage = messages.at(0);
+    const messages = this.takeMessages();
+    const lastMessage = messages.pop();
     if (
       this.state.prompt.paramKeys.includes('content') &&
       !messages.some(m => m.role === AiPromptRole.assistant) &&
-      firstMessage
+      lastMessage?.role === AiPromptRole.user
     ) {
       const normalizedParams = {
         ...params,
-        ...firstMessage.params,
-        content: firstMessage.content,
+        ...lastMessage.params,
+        content: lastMessage.content,
       };
       const finished = this.state.prompt.finish(
         normalizedParams,
@@ -160,11 +159,16 @@ export class ChatSession implements AsyncDisposable {
       );
 
       // attachments should be combined with the first user message
-      const firstUserMessage =
-        finished.find(m => m.role === 'user') || finished[0];
+      const firstUserMessageIndex = finished.findIndex(
+        m => m.role === AiPromptRole.user
+      );
+      // if prompt not contains user message, skip merge content
+      if (firstUserMessageIndex < 0) return null;
+      const firstUserMessage = finished[firstUserMessageIndex];
+
       firstUserMessage.attachments = [
         finished[0].attachments || [],
-        firstMessage.attachments || [],
+        lastMessage.attachments || [],
       ]
         .flat()
         .filter(v =>
@@ -172,6 +176,8 @@ export class ChatSession implements AsyncDisposable {
             ? !!v.trim()
             : v && v.attachment.trim() && v.mimeType
         );
+      //insert all previous user message content before first user message
+      finished.splice(firstUserMessageIndex, 0, ...messages);
 
       return finished;
     }
@@ -290,8 +296,8 @@ export class ChatSessionService {
               messageCost: { increment: userMessages.length },
               tokenCost: {
                 increment: this.calculateTokenSize(
-                  userMessages,
-                  state.prompt.model as AvailableModel
+                  state.messages,
+                  state.prompt.model
                 ),
               },
             },
@@ -395,10 +401,7 @@ export class ChatSessionService {
     });
   }
 
-  private calculateTokenSize(
-    messages: PromptMessage[],
-    model: AvailableModel
-  ): number {
+  private calculateTokenSize(messages: PromptMessage[], model: string): number {
     const encoder = getTokenEncoder(model);
     return messages
       .map(m => encoder?.count(m.content) ?? 0)
@@ -673,16 +676,19 @@ export class ChatSessionService {
     if (!state) {
       throw new CopilotSessionNotFound();
     }
-    const lastMessageIdx = state.messages.findLastIndex(
-      ({ id, role }) =>
-        role === AiPromptRole.assistant && id === options.latestMessageId
-    );
-    if (lastMessageIdx < 0) {
-      throw new CopilotMessageNotFound({ messageId: options.latestMessageId });
+    let messages = state.messages.map(m => ({ ...m, id: undefined }));
+    if (options.latestMessageId) {
+      const lastMessageIdx = state.messages.findLastIndex(
+        ({ id, role }) =>
+          role === AiPromptRole.assistant && id === options.latestMessageId
+      );
+      if (lastMessageIdx < 0) {
+        throw new CopilotMessageNotFound({
+          messageId: options.latestMessageId,
+        });
+      }
+      messages = messages.slice(0, lastMessageIdx + 1);
     }
-    const messages = state.messages
-      .slice(0, lastMessageIdx + 1)
-      .map(m => ({ ...m, id: undefined }));
 
     const forkedState = {
       ...state,

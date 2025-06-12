@@ -118,9 +118,15 @@ Get the root block of the store.
 
 ### addBlock()
 
-> **addBlock**(`flavour`, `blockProps`, `parent?`, `parentIndex?`): `string`
+> **addBlock**\<`T`\>(`flavour`, `blockProps`, `parent?`, `parentIndex?`): `string`
 
 Creates and adds a new block to the store
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `BlockModel`\<`object`\> = `BlockModel`\<`object`\>
 
 #### Parameters
 
@@ -132,7 +138,7 @@ The block's flavour (type)
 
 ##### blockProps
 
-`Partial`\<`BlockSysProps` & `Record`\<`string`, `unknown`\> & `Omit`\<`BlockProps`, `"flavour"`\>\> = `{}`
+`Partial`\<`BlockProps` \| `PropsOfModel`\<`T`\> & `BlockSysProps`\> = `{}`
 
 Optional properties for the new block
 
@@ -566,9 +572,15 @@ Optional flag to insert before sibling
 
 ### updateBlock()
 
-> **updateBlock**(`modelOrId`, `callBackOrProps`): `void`
+> **updateBlock**\<`T`\>(`modelOrId`, `callBackOrProps`): `void`
 
 Updates a block's properties or executes a callback in a transaction
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `BlockModel`\<`object`\> = `BlockModel`\<`object`\>
 
 #### Parameters
 
@@ -576,13 +588,13 @@ Updates a block's properties or executes a callback in a transaction
 
 The block model or block ID to update
 
-`string` | `BlockModel`\<`object`\>
+`string` | `T`
 
 ##### callBackOrProps
 
 Either a callback function to execute or properties to update
 
-`Partial`\<`BlockProps`\> | () => `void`
+() => `void` | `Partial`\<`BlockProps` \| `PropsOfModel`\<`T`\> & `BlockSysProps`\>
 
 #### Returns
 

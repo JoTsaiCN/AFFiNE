@@ -57,8 +57,7 @@ export abstract class AnthropicProvider<T> extends CopilotProvider<T> {
 
     try {
       metrics.ai.counter('chat_text_calls').add(1, { model: model.id });
-
-      const [system, msgs] = await chatToGPTMessage(messages);
+      const [system, msgs] = await chatToGPTMessage(messages, true, true);
 
       const modelInstance = this.instance(model.id);
       const { text, reasoning } = await generateText({
@@ -94,7 +93,8 @@ export abstract class AnthropicProvider<T> extends CopilotProvider<T> {
 
     try {
       metrics.ai.counter('chat_text_stream_calls').add(1, { model: model.id });
-      const [system, msgs] = await chatToGPTMessage(messages);
+      const [system, msgs] = await chatToGPTMessage(messages, true, true);
+
       const { fullStream } = streamText({
         model: this.instance(model.id),
         system,
@@ -142,7 +142,7 @@ export abstract class AnthropicProvider<T> extends CopilotProvider<T> {
   }
 
   private isReasoningModel(model: string) {
-    // only claude 3.7 sonnet supports reasoning config
-    return model.startsWith('claude-3-7-sonnet');
+    // claude 3.5 sonnet doesn't support reasoning config
+    return model.includes('sonnet') && !model.startsWith('claude-3-5-sonnet');
   }
 }

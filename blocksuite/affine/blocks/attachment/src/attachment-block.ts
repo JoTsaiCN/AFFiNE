@@ -17,11 +17,15 @@ import {
   AttachmentBlockStyles,
 } from '@blocksuite/affine-model';
 import {
+  CitationProvider,
   DocModeProvider,
   FileSizeLimitProvider,
   TelemetryProvider,
 } from '@blocksuite/affine-shared/services';
-import { formatSize } from '@blocksuite/affine-shared/utils';
+import {
+  formatSize,
+  openSingleFileWith,
+} from '@blocksuite/affine-shared/utils';
 import {
   AttachmentIcon,
   ResetIcon,
@@ -30,17 +34,18 @@ import {
 } from '@blocksuite/icons/lit';
 import { BlockSelection } from '@blocksuite/std';
 import { nanoid, Slice } from '@blocksuite/store';
-import { computed, signal } from '@preact/signals-core';
+import { batch, computed, signal } from '@preact/signals-core';
 import { html, type TemplateResult } from 'lit';
 import { choose } from 'lit/directives/choose.js';
 import { type ClassInfo, classMap } from 'lit/directives/class-map.js';
 import { guard } from 'lit/directives/guard.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { when } from 'lit/directives/when.js';
+import { filter } from 'rxjs/operators';
 
 import { AttachmentEmbedProvider } from './embed';
 import { styles } from './styles';
-import { downloadAttachmentBlob, refreshData } from './utils';
+import { downloadAttachmentBlob, getFileType, refreshData } from './utils';
 
 type AttachmentResolvedStateInfo = ResolvedStateInfo & {
   kind?: TemplateResult;
@@ -64,6 +69,11 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
     return this.resourceController.blobUrl$.value;
   }
 
+  get filetype() {
+    const name = this.model.props.name$.value;
+    return name.split('.').pop() ?? '';
+  }
+
   protected containerStyleMap = styleMap({
     position: 'relative',
     width: '100%',
@@ -74,8 +84,12 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
     return this.std.get(FileSizeLimitProvider).maxFileSize;
   }
 
+  get citationService() {
+    return this.std.get(CitationProvider);
+  }
+
   get isCitation() {
-    return !!this.model.props.footnoteIdentifier;
+    return this.citationService.isCitationModel(this.model);
   }
 
   convertTo = () => {
@@ -118,12 +132,50 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
 
   // Refreshes the embed component.
   reload = () => {
-    if (this.model.props.embed) {
-      this._refreshKey$.value = nanoid();
-      return;
-    }
+    batch(() => {
+      if (this.model.props.embed$.value) {
+        this._refreshKey$.value = nanoid();
+        return;
+      }
 
-    this.refreshData();
+      this.refreshData();
+    });
+  };
+
+  // Replaces the current attachment.
+  replace = async () => {
+    const state = this.resourceController.state$.peek();
+    if (state.uploading) return;
+
+    const file = await openSingleFileWith();
+    if (!file) return;
+
+    const sourceId = await this.std.store.blobSync.set(file);
+    const type = await getFileType(file);
+    const { name, size } = file;
+
+    let embed = this.model.props.embed$.value ?? false;
+
+    this.std.store.captureSync();
+    this.std.store.transact(() => {
+      this.std.store.updateBlock(this.blockId, {
+        name,
+        size,
+        type,
+        sourceId,
+        embed: false,
+      });
+
+      const provider = this.std.get(AttachmentEmbedProvider);
+      embed &&= provider.embedded(this.model);
+
+      if (embed) {
+        provider.convertTo(this.model);
+      }
+
+      // Reloads
+      this.reload();
+    });
   };
 
   private _selectBlock() {
@@ -133,6 +185,34 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
     });
     selectionManager.setGroup('note', [blockSelection]);
   }
+
+  private readonly _trackCitationDeleteEvent = () => {
+    // Check citation delete event
+    this._disposables.add(
+      this.std.store.slots.blockUpdated
+        .pipe(
+          filter(payload => {
+            if (!payload.isLocal) return false;
+
+            const { flavour, id, type } = payload;
+            if (
+              type !== 'delete' ||
+              flavour !== this.model.flavour ||
+              id !== this.model.id
+            )
+              return false;
+
+            const { model } = payload;
+            if (!this.citationService.isCitationModel(model)) return false;
+
+            return true;
+          })
+        )
+        .subscribe(() => {
+          this.citationService.trackEvent('Delete');
+        })
+    );
+  };
 
   override connectedCallback() {
     super.connectedCallback();
@@ -157,6 +237,8 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
         });
       });
     }
+
+    this._trackCitationDeleteEvent();
   }
 
   override firstUpdated() {
@@ -212,13 +294,23 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
     );
   };
 
-  protected renderReloadButton = () => {
+  protected renderNormalButton = (needUpload: boolean) => {
+    const label = needUpload ? 'retry' : 'reload';
+    const run = async () => {
+      if (needUpload) {
+        await this.resourceController.upload();
+        return;
+      }
+
+      this.refreshData();
+    };
+
     return html`
       <button
         class="affine-attachment-content-button"
         @click=${(event: MouseEvent) => {
           event.stopPropagation();
-          this.refreshData();
+          run().catch(console.error);
 
           {
             const mode =
@@ -230,21 +322,28 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
                 segment,
                 page: `${segment} editor`,
                 module: 'attachment',
-                control: 'reload',
+                control: label,
                 category: 'card',
-                type: this.model.props.name.split('.').pop() ?? '',
+                type: this.filetype,
               });
           }
         }}
       >
-        ${ResetIcon()} Reload
+        ${ResetIcon()} ${label}
       </button>
     `;
   };
 
   protected renderWithHorizontal(
     classInfo: ClassInfo,
-    { icon, title, description, kind, state }: AttachmentResolvedStateInfo
+    {
+      icon,
+      title,
+      description,
+      kind,
+      state,
+      needUpload,
+    }: AttachmentResolvedStateInfo
   ) {
     return html`
       <div class=${classMap(classInfo)}>
@@ -261,7 +360,7 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
               ${description}
             </div>
             ${choose(state, [
-              ['error', this.renderReloadButton],
+              ['error', () => this.renderNormalButton(needUpload)],
               ['error:oversize', this.renderUpgradeButton],
             ])}
           </div>
@@ -274,7 +373,14 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
 
   protected renderWithVertical(
     classInfo: ClassInfo,
-    { icon, title, description, kind, state }: AttachmentResolvedStateInfo
+    {
+      icon,
+      title,
+      description,
+      kind,
+      state,
+      needUpload,
+    }: AttachmentResolvedStateInfo
   ) {
     return html`
       <div class=${classMap(classInfo)}>
@@ -294,7 +400,7 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
         <div class="affine-attachment-banner">
           ${kind}
           ${choose(state, [
-            ['error', this.renderReloadButton],
+            ['error', () => this.renderNormalButton(needUpload)],
             ['error:oversize', this.renderUpgradeButton],
           ])}
         </div>
@@ -305,7 +411,7 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
   protected resolvedState$ = computed<AttachmentResolvedStateInfo>(() => {
     const size = this.model.props.size;
     const name = this.model.props.name$.value;
-    const kind = getAttachmentFileIcon(name.split('.').pop() ?? '');
+    const kind = getAttachmentFileIcon(this.filetype);
 
     const resolvedState = this.resourceController.resolveStateWith({
       loadingIcon: LoadingIcon(),
@@ -338,7 +444,7 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
 
   protected renderEmbedView = () => {
     const { model, blobUrl } = this;
-    if (!model.props.embed || !blobUrl) return null;
+    if (!model.props.embed$.value || !blobUrl) return null;
 
     const { std, _maxFileSize } = this;
     const provider = std.get(AttachmentEmbedProvider);
@@ -359,11 +465,16 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
         const message = resolvedState.description;
         if (!message) return null;
 
+        const needUpload = resolvedState.needUpload;
+        const action = () =>
+          needUpload ? this.resourceController.upload() : this.reload();
+
         return html`
           <affine-resource-status
             class="affine-attachment-embed-status"
             .message=${message}
-            .reload=${() => this.reload()}
+            .needUpload=${needUpload}
+            .action=${action}
           ></affine-resource-status>
         `;
       })}
@@ -372,10 +483,10 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
 
   private readonly _renderCitation = () => {
     const { name, footnoteIdentifier } = this.model.props;
-    const fileType = name.split('.').pop() ?? '';
-    const fileTypeIcon = getAttachmentFileIcon(fileType);
+    const icon = getAttachmentFileIcon(this.filetype);
+
     return html`<affine-citation-card
-      .icon=${fileTypeIcon}
+      .icon=${icon}
       .citationTitle=${name}
       .citationIdentifier=${footnoteIdentifier}
       .active=${this.selected$.value}

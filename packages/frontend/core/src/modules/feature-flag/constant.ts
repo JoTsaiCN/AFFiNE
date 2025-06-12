@@ -259,28 +259,12 @@ export const AFFINE_FLAGS = {
     configurable: isCanaryBuild,
     defaultState: false,
   },
-  // TODO(@L-Sun): remove this flag after the feature is released
-  enable_embed_doc_with_alias: {
-    category: 'blocksuite',
-    bsFlag: 'enable_embed_doc_with_alias',
-    displayName: 'Embed doc with alias',
-    description: 'Embed doc with alias',
-    configurable: isCanaryBuild,
-    defaultState: isCanaryBuild,
-  },
   enable_setting_subpage_animation: {
     category: 'affine',
     displayName: 'Enable Setting Subpage Animation',
     description: 'Apply animation for setting subpage open/close',
     configurable: isCanaryBuild,
     defaultState: false,
-  },
-  enable_calendar_integration: {
-    category: 'affine',
-    displayName: 'Enable Calendar Integration',
-    description: 'Enable calendar integration',
-    configurable: false,
-    defaultState: isCanaryBuild,
   },
   enable_cloud_indexer: {
     category: 'affine',

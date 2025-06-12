@@ -9,7 +9,10 @@ import {
   getSurfaceComponent,
 } from '@blocksuite/affine-block-surface';
 import { splitIntoLines } from '@blocksuite/affine-gfx-text';
-import type { ShapeElementModel } from '@blocksuite/affine-model';
+import type {
+  EmbedCardStyle,
+  ShapeElementModel,
+} from '@blocksuite/affine-model';
 import {
   BookmarkStyles,
   DEFAULT_NOTE_HEIGHT,
@@ -32,6 +35,7 @@ import {
   TelemetryProvider,
 } from '@blocksuite/affine-shared/services';
 import {
+  convertToPng,
   isInsidePageEditor,
   isTopLevelBlock,
   isUrlInClipboard,
@@ -64,7 +68,7 @@ import * as Y from 'yjs';
 
 import { PageClipboard } from '../../clipboard/index.js';
 import { getSortedCloneElements } from '../utils/clone-utils.js';
-import { isCanvasElementWithText } from '../utils/query.js';
+import { isCanvasElementWithText, isImageBlock } from '../utils/query.js';
 import { createElementsFromClipboardDataCommand } from './command.js';
 import {
   isPureFileInClipboard,
@@ -120,6 +124,49 @@ export class EdgelessClipboardController extends PageClipboard {
       // use build-in copy handler in rich-text when copy in surface text element
       if (isCanvasElementWithText(elements[0])) return;
       this.onPageCopy(_context);
+      return;
+    }
+
+    // Only when an image is selected, it can be pasted normally to page mode.
+    if (elements.length === 1 && isImageBlock(elements[0])) {
+      const element = elements[0];
+      const sourceId = element.props.sourceId$.peek();
+      if (!sourceId) return;
+
+      await this.std.clipboard.writeToClipboard(async items => {
+        const job = this.std.store.getTransformer();
+        await job.assetsManager.readFromBlob(sourceId);
+
+        let blob = job.assetsManager.getAssets().get(sourceId) ?? null;
+        if (!blob) {
+          return items;
+        }
+
+        let type = blob.type;
+        let supported = false;
+
+        try {
+          supported = ClipboardItem?.supports(type) ?? false;
+        } catch (err) {
+          console.error(err);
+        }
+
+        // TODO(@fundon): when converting jpeg to png, image may become larger and exceed the limit.
+        if (!supported) {
+          type = 'image/png';
+          blob = await convertToPng(blob);
+        }
+
+        if (blob) {
+          return {
+            ...items,
+            [`${type}`]: blob,
+          };
+        }
+
+        return items;
+      });
+
       return;
     }
 
@@ -236,7 +283,7 @@ export class EdgelessClipboardController extends PageClipboard {
       const options: Record<string, unknown> = {};
 
       let flavour = 'affine:bookmark';
-      let style = BookmarkStyles[0];
+      let style: EmbedCardStyle = BookmarkStyles[0];
       let isInternalLink = false;
       let isLinkedBlock = false;
 

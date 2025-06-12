@@ -2,6 +2,7 @@ import type {
   ChatHistoryOrder,
   ContextMatchedDocChunk,
   ContextMatchedFileChunk,
+  ContextWorkspaceEmbeddingStatus,
   CopilotContextCategory,
   CopilotContextDoc,
   CopilotContextFile,
@@ -85,15 +86,15 @@ declare global {
       // internal context
       host: EditorHost;
       models?: (BlockModel | GfxModel)[];
-      control: TrackerControl;
-      where: TrackerWhere;
+      control?: TrackerControl;
+      where?: TrackerWhere;
     }
 
     interface AIForkChatSessionOptions {
       docId: string;
       workspaceId: string;
       sessionId: string;
-      latestMessageId: string;
+      latestMessageId?: string;
     }
 
     interface AIImageActionOptions extends AITextActionOptions {
@@ -327,6 +328,11 @@ declare global {
         sessionId: string,
         contextId: string,
         onPoll: (result: AIDocsAndFilesContext | undefined) => void,
+        abortSignal: AbortSignal
+      ) => Promise<void>;
+      pollEmbeddingStatus: (
+        workspaceId: string,
+        onPoll: (result: ContextWorkspaceEmbeddingStatus) => void,
         abortSignal: AbortSignal
       ) => Promise<void>;
       matchContext: (
